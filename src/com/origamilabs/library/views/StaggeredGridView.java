@@ -138,6 +138,7 @@ public class StaggeredGridView extends ViewGroup {
     private int mNumCols;
     private long mFirstAdapterId;
     private boolean mBeginClick;
+    private boolean mIsFlingFinished;
 
     private static final int TOUCH_MODE_IDLE = 0;
     private static final int TOUCH_MODE_DRAGGING = 1;
@@ -399,6 +400,7 @@ public class StaggeredGridView extends ViewGroup {
         switch (action) {
             case MotionEvent.ACTION_DOWN:
                 mVelocityTracker.clear();
+                mIsFlingFinished = mScroller.isFinished();
                 mScroller.abortAnimation();
                 mLastTouchY = ev.getY();
                 mActivePointerId = MotionEventCompat.getPointerId(ev, 0);
@@ -2636,4 +2638,8 @@ public class StaggeredGridView extends ViewGroup {
 	public void setDrawSelectorOnTop(boolean mDrawSelectorOnTop) {
 		this.mDrawSelectorOnTop = mDrawSelectorOnTop;
 	}
+
+    public boolean isFlingFinished() {
+        return mIsFlingFinished;
+    }
 }
