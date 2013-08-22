@@ -126,7 +126,7 @@ public class StaggeredGridView extends ViewGroup {
     private static final int TOUCH_MODE_IDLE = 0;
     private static final int TOUCH_MODE_DRAGGING = 1;
     private static final int TOUCH_MODE_FLINGING = 2;
-	private static final int INVALID_POSITION = -1;
+    private static final int INVALID_POSITION = -1;
 
     private int mTouchMode;
     private final VelocityTracker mVelocityTracker = VelocityTracker.obtain();
@@ -134,6 +134,9 @@ public class StaggeredGridView extends ViewGroup {
 
     private final EdgeEffectCompat mTopEdge;
     private final EdgeEffectCompat mBottomEdge;
+
+    private Runnable mSelectorTrueRunnable;
+    private Runnable mSelectorFalseRunnable;
 
     /**
      * The listener that receives notifications when an item is clicked.
@@ -292,6 +295,8 @@ public class StaggeredGridView extends ViewGroup {
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         mVelocityTracker.addMovement(ev);
         final int action = ev.getAction() & MotionEventCompat.ACTION_MASK;
+        int motionPosition = pointToPosition((int) ev.getX(), (int) ev.getY());
+
         switch (action) {
             case MotionEvent.ACTION_DOWN:
                 mVelocityTracker.clear();
@@ -303,6 +308,20 @@ public class StaggeredGridView extends ViewGroup {
                     // Catch!
                     mTouchMode = TOUCH_MODE_DRAGGING;
                     return true;
+                } else if (mTouchMode == TOUCH_MODE_IDLE) {
+                    if(!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
+                        final View view = getChildAt(motionPosition - mFirstPosition);
+                        if(view != null) {
+                            mSelectorTrueRunnable = new Runnable() {
+                                @Override
+                                public void run() {
+                                    view.setPressed(true);
+                                    mSelectorTrueRunnable = null;
+                                }
+                            };
+                            getHandler().postDelayed(mSelectorTrueRunnable, ViewConfiguration.getPressedStateDuration());
+                        }
+                    }
                 }
                 break;
 
@@ -368,17 +387,39 @@ public class StaggeredGridView extends ViewGroup {
                         // Break fling velocity if we impacted an edge.
                         mVelocityTracker.clear();
                     }
+
+                    if(!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
+                        final View view = getChildAt(motionPosition - mFirstPosition);
+                        if(view != null) {
+                            if (mSelectorTrueRunnable != null) {
+                                getHandler().removeCallbacks(mSelectorTrueRunnable);
+                            } else {
+                                view.setPressed(false);
+                            }
+                        }
+                    }
                 }
             } break;
 
             case MotionEvent.ACTION_CANCEL:
                 mTouchMode = TOUCH_MODE_IDLE;
+                if(!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
+                    final View view = getChildAt(motionPosition - mFirstPosition);
+                    if(view != null) {
+                        if (mSelectorTrueRunnable != null) {
+                            getHandler().removeCallbacks(mSelectorTrueRunnable);
+                        } else {
+                            view.setPressed(false);
+                        }
+                    }
+                }
                 break;
 
             case MotionEvent.ACTION_UP: {
                 mVelocityTracker.computeCurrentVelocity(1000, mMaximumVelocity);
                 final float velocity = VelocityTrackerCompat.getYVelocity(mVelocityTracker,
                         mActivePointerId);
+
                 if (Math.abs(velocity) > mFlingVelocity) { // TODO
                     mTouchMode = TOUCH_MODE_FLINGING;
                     mScroller.fling(0, 0, 0, (int) velocity, 0, 0,
@@ -389,7 +430,15 @@ public class StaggeredGridView extends ViewGroup {
                     if(!mDataChanged && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
                         final View view = getChildAt(motionPosition - mFirstPosition);
                         if(view != null) {
-                            mOnItemClickListener.onItemClick(this, view, motionPosition, mAdapter.getItemId(motionPosition));
+                            if (mSelectorTrueRunnable != null) {
+                                getHandler().removeCallbacks(mSelectorTrueRunnable);
+                                view.setPressed(true);
+                                mSelectorFalseRunnable = getSelectorFalseRunnable(this, view, motionPosition);
+                                getHandler().postDelayed(mSelectorFalseRunnable, ViewConfiguration.getPressedStateDuration());
+                            } else {
+                                view.setPressed(false);
+                                mOnItemClickListener.onItemClick(this, view, motionPosition, mAdapter.getItemId(motionPosition));
+                            }
                         }
                     }
                 } else {
@@ -399,6 +448,17 @@ public class StaggeredGridView extends ViewGroup {
             } break;
         }
         return true;
+    }
+
+    private Runnable getSelectorFalseRunnable(final StaggeredGridView parent, final View view, final int motionPosition) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                view.setPressed(false);
+                mOnItemClickListener.onItemClick(parent, view, motionPosition, mAdapter.getItemId(motionPosition));
+                mSelectorFalseRunnable = null;
+            }
+        };
     }
 
     /**
@@ -916,8 +976,8 @@ public class StaggeredGridView extends ViewGroup {
             LayoutParams lp = (LayoutParams) child.getLayoutParams();
 
             if(lp == null){
-            	lp = this.generateDefaultLayoutParams();
-            	child.setLayoutParams(lp);
+                lp = this.generateDefaultLayoutParams();
+                child.setLayoutParams(lp);
             }
 
             if (child.getParent() != this) {
@@ -1035,8 +1095,8 @@ public class StaggeredGridView extends ViewGroup {
             LayoutParams lp = (LayoutParams) child.getLayoutParams();
 
             if(lp == null){
-            	lp = this.generateDefaultLayoutParams();
-            	child.setLayoutParams(lp);
+                lp = this.generateDefaultLayoutParams();
+                child.setLayoutParams(lp);
             }
 
             if (child.getParent() != this) {
