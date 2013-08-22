@@ -91,6 +91,13 @@ public class StaggeredGridView extends ViewGroup {
 
     public static final int COLUMN_COUNT_AUTO = -1;
 
+    public static final int AUTO_FIT = COLUMN_COUNT_AUTO;
+
+    /**
+     * Represents an empty or invalid row id
+     */
+    public static final long INVALID_ROW_ID = Long.MIN_VALUE;
+
     private int mColCountSetting = 2;
     private int mColCount = 2;
     private int mMinColWidth = 0;
@@ -1870,5 +1877,35 @@ public class StaggeredGridView extends ViewGroup {
          * @param totalItemCount the number of items in the list adaptor
          */
         public void onScroll(ViewGroup view, int firstVisibleItem, int visibleItemCount, int totalItemCount);
+    }
+
+    /**
+     * Returns the position within the adapter's data set for the first item
+     * displayed on screen.
+     *
+     * @return The position within the adapter's data set
+     */
+    public int getFirstVisiblePosition() {
+        return mFirstPosition;
+    }
+
+    /**
+     * Returns the position within the adapter's data set for the last item
+     * displayed on screen.
+     *
+     * @return The position within the adapter's data set
+     */
+    public int getLastVisiblePosition() {
+        return mFirstPosition + getChildCount() - 1;
+    }
+
+    public Object getItemAtPosition(int position) {
+        ListAdapter adapter = getAdapter();
+        return (adapter == null || position < 0) ? null : adapter.getItem(position);
+    }
+
+    public long getItemIdAtPosition(int position) {
+        ListAdapter adapter = getAdapter();
+        return (adapter == null || position < 0) ? INVALID_ROW_ID : adapter.getItemId(position);
     }
 }
