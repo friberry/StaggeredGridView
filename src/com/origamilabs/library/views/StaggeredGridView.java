@@ -427,6 +427,16 @@ public class StaggeredGridView extends ViewGroup {
                     mScroller.fling(0, 0, 0, (int) velocity, 0, 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
                     mLastTouchY = 0;
                     ViewCompat.postInvalidateOnAnimation(this);
+                    if(!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
+                        final View view = getChildAt(motionPosition - mFirstPosition);
+                        if(view != null) {
+                            if (mSelectorTrueRunnable != null) {
+                                getHandler().removeCallbacks(mSelectorTrueRunnable);
+                            } else {
+                                view.setPressed(false);
+                            }
+                        }
+                    }
                 } else if (mTouchMode == TOUCH_MODE_IDLE && mOnItemClickListener != null && mAdapter != null) {
                     if(!mDataChanged && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
                         final View view = getChildAt(motionPosition - mFirstPosition);
