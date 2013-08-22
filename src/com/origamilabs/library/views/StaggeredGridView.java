@@ -135,6 +135,8 @@ public class StaggeredGridView extends ViewGroup {
     private final EdgeEffectCompat mTopEdge;
     private final EdgeEffectCompat mBottomEdge;
 
+    private OnScrollListener mOnScrollListener;
+
     private Runnable mSelectorTrueRunnable;
     private Runnable mSelectorFalseRunnable;
 
@@ -306,7 +308,7 @@ public class StaggeredGridView extends ViewGroup {
                 mTouchRemainderY = 0;
                 if (mTouchMode == TOUCH_MODE_FLINGING) {
                     // Catch!
-                    mTouchMode = TOUCH_MODE_DRAGGING;
+                    setTouchMode(TOUCH_MODE_DRAGGING);
                     return true;
                 } else if (mTouchMode == TOUCH_MODE_IDLE) {
                     if(!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
@@ -339,7 +341,7 @@ public class StaggeredGridView extends ViewGroup {
                 mTouchRemainderY = dy - deltaY;
 
                 if (Math.abs(dy) > mTouchSlop) {
-                    mTouchMode = TOUCH_MODE_DRAGGING;
+                    setTouchMode(TOUCH_MODE_DRAGGING);
                     return true;
                 }
             }
@@ -377,7 +379,7 @@ public class StaggeredGridView extends ViewGroup {
                 mTouchRemainderY = dy - deltaY;
 
                 if (Math.abs(dy) > mTouchSlop) {
-                    mTouchMode = TOUCH_MODE_DRAGGING;
+                    setTouchMode(TOUCH_MODE_DRAGGING);
                 }
 
                 if (mTouchMode == TOUCH_MODE_DRAGGING) {
@@ -402,7 +404,7 @@ public class StaggeredGridView extends ViewGroup {
             } break;
 
             case MotionEvent.ACTION_CANCEL:
-                mTouchMode = TOUCH_MODE_IDLE;
+                setTouchMode(TOUCH_MODE_IDLE);
                 if(!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition) && mItemCount > 0 && motionPosition != INVALID_POSITION && motionPosition < mAdapter.getCount() && hasWindowFocus()) {
                     final View view = getChildAt(motionPosition - mFirstPosition);
                     if(view != null) {
@@ -421,9 +423,8 @@ public class StaggeredGridView extends ViewGroup {
                         mActivePointerId);
 
                 if (Math.abs(velocity) > mFlingVelocity) { // TODO
-                    mTouchMode = TOUCH_MODE_FLINGING;
-                    mScroller.fling(0, 0, 0, (int) velocity, 0, 0,
-                            Integer.MIN_VALUE, Integer.MAX_VALUE);
+                    setTouchMode(TOUCH_MODE_FLINGING);
+                    mScroller.fling(0, 0, 0, (int) velocity, 0, 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
                     mLastTouchY = 0;
                     ViewCompat.postInvalidateOnAnimation(this);
                 } else if (mTouchMode == TOUCH_MODE_IDLE && mOnItemClickListener != null && mAdapter != null) {
@@ -442,7 +443,7 @@ public class StaggeredGridView extends ViewGroup {
                         }
                     }
                 } else {
-                    mTouchMode = TOUCH_MODE_IDLE;
+                    setTouchMode(TOUCH_MODE_IDLE);
                 }
 
             } break;
@@ -506,6 +507,8 @@ public class StaggeredGridView extends ViewGroup {
                 }
             }
         }
+
+        invokeOnItemScrollListener();
 
         return deltaY == 0 || movedBy != 0;
     }
@@ -629,6 +632,7 @@ public class StaggeredGridView extends ViewGroup {
             final boolean stopped = !trackMotionScroll(dy, false);
 
             if (!stopped && !mScroller.isFinished()) {
+                invokeOnItemScrollListener();
                 ViewCompat.postInvalidateOnAnimation(this);
             } else {
                 if (stopped) {
@@ -645,7 +649,7 @@ public class StaggeredGridView extends ViewGroup {
                     }
                     mScroller.abortAnimation();
                 }
-                mTouchMode = TOUCH_MODE_IDLE;
+                setTouchMode(TOUCH_MODE_IDLE);
             }
         }
     }
@@ -1772,5 +1776,89 @@ public class StaggeredGridView extends ViewGroup {
             }
         }
         return INVALID_POSITION;
+    }
+
+    public void setTouchMode(int newState){
+        switch (newState) {
+            case TOUCH_MODE_DRAGGING:
+                reportScrollStateChange(OnScrollListener.SCROLL_STATE_TOUCH_SCROLL);
+                break;
+            case TOUCH_MODE_FLINGING:
+                reportScrollStateChange(OnScrollListener.SCROLL_STATE_FLING);
+                break;
+            case TOUCH_MODE_IDLE:
+                reportScrollStateChange(OnScrollListener.SCROLL_STATE_IDLE);
+                break;
+        }
+    }
+
+    public void setOnScrollListener(OnScrollListener scrollListener) {
+        mOnScrollListener = scrollListener;
+        invokeOnItemScrollListener();
+    }
+
+    void reportScrollStateChange(int newState) {
+        if (mTouchMode != newState) {
+            mTouchMode = newState;
+            if (mOnScrollListener != null) {
+                mOnScrollListener.onScrollStateChanged(this, newState);
+            }
+        }
+    }
+
+    void invokeOnItemScrollListener() {
+
+        if (mOnScrollListener != null) {
+            mOnScrollListener.onScroll(this, mFirstPosition, getChildCount(), mItemCount);
+        }
+
+    }
+
+    /**
+     * Interface definition for a callback to be invoked when the list or grid
+     * has been scrolled.
+     */
+    public interface OnScrollListener {
+
+        /**
+         * The view is not scrolling. Note navigating the list using the trackball counts as
+         * being in the idle state since these transitions are not animated.
+         */
+        public static int SCROLL_STATE_IDLE = 0;
+
+        /**
+         * The user is scrolling using touch, and their finger is still on the screen
+         */
+        public static int SCROLL_STATE_TOUCH_SCROLL = 1;
+
+        /**
+         * The user had previously been scrolling using touch and had performed a fling. The
+         * animation is now coasting to a stop
+         */
+        public static int SCROLL_STATE_FLING = 2;
+
+        /**
+         * Callback method to be invoked while the list view or grid view is being scrolled. If the
+         * view is being scrolled, this method will be called before the next frame of the scroll is
+         * rendered. In particular, it will be called before any calls to
+         * {@link Adapter#getView(int, View, ViewGroup)}.
+         *
+         * @param view The view whose scroll state is being reported
+         *
+         * @param scrollState The current scroll state. One of {@link #SCROLL_STATE_IDLE},
+         * {@link #SCROLL_STATE_TOUCH_SCROLL} or {@link #SCROLL_STATE_IDLE}.
+         */
+        public void onScrollStateChanged(ViewGroup view, int scrollState);
+
+        /**
+         * Callback method to be invoked when the list or grid has been scrolled. This will be
+         * called after the scroll has completed
+         * @param view The view whose scroll state is being reported
+         * @param firstVisibleItem the index of the first visible cell (ignore if
+         *        visibleItemCount == 0)
+         * @param visibleItemCount the number of visible cells
+         * @param totalItemCount the number of items in the list adaptor
+         */
+        public void onScroll(ViewGroup view, int firstVisibleItem, int visibleItemCount, int totalItemCount);
     }
 }
